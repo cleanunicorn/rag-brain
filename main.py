@@ -52,14 +52,19 @@ def query_prompts(query):
     "--strategy",
     default="character",
     help="Chunking strategy",
-    type=click.Choice(["character", "langchain_text_splitter", 'recursive', 'markdown']),
+    type=click.Choice(["character", "endline", "recursive", "markdown", "semantic"]),
 )
-def chunk(file_path, strategy):
+@click.option("--chunk_size", default=100, help="Chunk size", type=int)
+@click.option("--chunk_overlap", default=0, help="Chunk overlap", type=int)
+@click.option("--strip_whitespace", is_flag=True, help="Strip whitespace")
+def chunk(file_path, strategy, chunk_size, chunk_overlap, strip_whitespace):
     from chunking.chunking import Chunking
 
     chunking = Chunking()
     chunking.from_file(file_path)
-    chunks = chunking.split(strategy=strategy, chunk_size=300, chunk_overlap=100, strip_whitespace=True)
+    chunks = chunking.split(
+        strategy=strategy, chunk_size=chunk_size, chunk_overlap=chunk_overlap, strip_whitespace=strip_whitespace
+    )
     for chunk in chunks:
         print(chunk)
         print("-----")
