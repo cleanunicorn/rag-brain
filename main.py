@@ -3,6 +3,7 @@ import os
 import pathspec
 from datetime import datetime
 from tqdm import tqdm
+import hashlib
 
 import chromadb
 import chromadb.utils.embedding_functions as embedding_functions
@@ -53,10 +54,18 @@ def query(query, collection_name, results):
     collection = client.get_or_create_collection(name=collection_name)
 
     results = collection.query(query_texts=[query], n_results=results)
-    for chunks in results["documents"]:
-        for chunk in chunks:
-            print(chunk)
-            print('---')
+    documents = results['documents'][0]
+    metadatas = results['metadatas'][0]
+    file_name = ''
+    for i, doc in enumerate(documents):
+        if file_name != metadatas[i]['file_name']:
+            file_name = metadatas[i]['file_name']
+            print("="*len(file_name))
+            print(f"{file_name}")
+            print("="*len(file_name))
+        else:
+            print("...")
+        print(doc)
     # print(results)
 
 
@@ -150,8 +159,10 @@ def _discover_files(folder_path, file_extensions, gitignore_patterns):
 @click.option("--chunk_overlap", default=200, help="Chunk overlap", type=int)
 @click.option("--file_extensions", default=".txt,.md,.py,.pdf", help="Comma-separated file extensions to process")
 @click.option("--clean", is_flag=True, help="Clean/recreate the collection before adding documents")
-def rag(folder_path, collection_name, strategy, chunk_size, chunk_overlap, file_extensions, clean):
-    """Load documents from a folder into a ChromaDB collection for RAG."""
+@click.option("--refresh", is_flag=True, help="Only process files that have changed (based on checksum), skip if already processed and unchanged")
+def rag(folder_path, collection_name, strategy, chunk_size, chunk_overlap, file_extensions, clean, refresh):
+    """Load documents from a folder into a ChromaDB collection for RAG.
+    """
     from chunking.chunking import Chunking
     
     # Validate folder path
@@ -212,6 +223,25 @@ def rag(folder_path, collection_name, strategy, chunk_size, chunk_overlap, file_
     processed_files = 0
     skipped_files = []
     
+    # If refresh is enabled, fetch existing metadata to compare checksums
+    if refresh:
+        click.echo("Fetching existing metadata for comparison...")
+        existing_metadata = {}
+        try:
+            # Query collection for all documents
+            all_results = collection.get()
+            for doc_id, metadata in zip(all_results["ids"], all_results["metadatas"]):
+                # Extract file path and checksum from metadata
+                file_path = metadata.get("file_path")
+                checksum = metadata.get("checksum")
+                if file_path and checksum:
+                    # Use relative path as key
+                    rel_path = os.path.relpath(file_path, folder_path)
+                    existing_metadata[rel_path] = checksum
+        except Exception as e:
+            click.echo(f"Warning: Could not fetch existing metadata: {e}")
+            click.echo("Proceeding with full processing.")
+    
     with tqdm(files, desc="Processing files") as pbar:
         for file_path in pbar:
             try:
@@ -224,6 +254,19 @@ def rag(folder_path, collection_name, strategy, chunk_size, chunk_overlap, file_
                 if not chunking.text.strip():
                     skipped_files.append((file_path, "Empty file"))
                     continue
+                
+                # Compute checksum for the entire file
+                file_hash = hashlib.sha256(chunking.text.encode('utf-8')).hexdigest()
+                
+                # Determine if file needs processing
+                rel_path = os.path.relpath(file_path, folder_path)
+                if refresh and rel_path in existing_metadata:
+                    if existing_metadata[rel_path] == file_hash:
+                        # click.echo(f"✓ Skipping unchanged file: {rel_path}")
+                        continue  # Skip processing
+                    else:
+                        click.echo(f"🔄 File changed, reprocessing: {rel_path}")
+                        pass
                 
                 chunks = chunking.split(
                     strategy=strategy,
@@ -242,7 +285,6 @@ def rag(folder_path, collection_name, strategy, chunk_size, chunk_overlap, file_
                 ids = []
                 
                 file_stats = os.stat(file_path)
-                rel_path = os.path.relpath(file_path, folder_path)
                 
                 for i, chunk in enumerate(chunks):
                     if chunk.strip():  # Only add non-empty chunks
@@ -259,7 +301,8 @@ def rag(folder_path, collection_name, strategy, chunk_size, chunk_overlap, file_
                             "created_at": datetime.now().isoformat(),
                             "chunking_strategy": strategy,
                             "chunk_size": chunk_size,
-                            "chunk_overlap": chunk_overlap
+                            "chunk_overlap": chunk_overlap,
+                            "checksum": file_hash
                         }
                         metadatas.append(metadata)
                         
@@ -269,7 +312,7 @@ def rag(folder_path, collection_name, strategy, chunk_size, chunk_overlap, file_
                 
                 # Add to ChromaDB
                 if documents:
-                    collection.add(
+                    collection.upsert(
                         documents=documents,
                         metadatas=metadatas,
                         ids=ids
