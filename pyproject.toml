@@ -8,9 +8,13 @@ dependencies = [
     "chromadb>=1.1.0",
     "click>=8.2.1",
     "langchain>=0.3.27",
+    "numpy>=2.3.3",
     "pandas>=2.3.2",
+    "pathspec>=0.12.1",
     "pip>=25.2",
+    "pypdf2>=3.0.1",
     "ruff>=0.13.0",
     "sentence-transformers>=5.1.0",
     "spacy>=3.8.7",
+    "tqdm>=4.67.1",
 ]

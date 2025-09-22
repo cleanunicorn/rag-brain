@@ -3,14 +3,39 @@ from langchain.text_splitter import (
     RecursiveCharacterTextSplitter,
     MarkdownTextSplitter,
 )
+import PyPDF2
+import os
 
 
 class Chunking:
     text = ""
 
     def from_file(self, file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            self.text = f.read()
+        """Load text from various file types."""
+        file_extension = os.path.splitext(file_path)[1].lower()
+        
+        if file_extension == '.pdf':
+            self.text = self._extract_pdf_text(file_path)
+        else:
+            # Handle text files (txt, md, py, etc.)
+            with open(file_path, "r", encoding="utf-8") as f:
+                self.text = f.read()
+
+    def _extract_pdf_text(self, pdf_path):
+        """Extract text from PDF file."""
+        text = ""
+        try:
+            with open(pdf_path, "rb") as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                for page in pdf_reader.pages:
+                    text += page.extract_text() + "\n"
+        except Exception as e:
+            raise ValueError(f"Error reading PDF file {pdf_path}: {str(e)}")
+        return text
+
+    def from_text(self, text):
+        """Load text directly."""
+        self.text = text
 
     def split(
         self,
@@ -89,32 +114,59 @@ class Chunking:
 
     def split_semantic(self, similarity_threshold=0.8, chunk_size=100):
         from sentence_transformers import SentenceTransformer, util
+        model = SentenceTransformer("./chunking/embeddinggemma-300m")
 
-        model = SentenceTransformer("./embeddinggemma-300m")
-        sentences = self.text.split(". ")
-        embeddings = model.encode(sentences, convert_to_tensor=True)
+        # Split into sentences
+        import spacy
+        nlp = spacy.load("en_core_web_sm")
+        doc = nlp(self.text)
+        sentence_list = [chunk.text for chunk in doc.sents]
+        sentences = [{'sentence': s.strip(), 'index': i} for i, s in enumerate(sentence_list)]
 
-        clusters = []
-        used_indices = set()
+        # Add embeddings
+        embeddings = model.encode([s['sentence'] for s in sentences])
+        for i, sentence in enumerate(sentences):
+            sentence['embedding'] = embeddings[i]
 
-        for i in range(len(sentences)):
-            if i in used_indices:
-                continue
-            cluster = [sentences[i]]
-            used_indices.add(i)
-            for j in range(i + 1, len(sentences)):
-                if j in used_indices:
-                    continue
-                similarity = util.pytorch_cos_sim(embeddings[i], embeddings[j]).item()
-                if similarity >= similarity_threshold:
-                    cluster.append(sentences[j])
-                    used_indices.add(j)
-            clusters.append(" ".join(cluster))
+        # Calculate distances between sentences
+        from sklearn.metrics.pairwise import cosine_similarity
+        distances = []
+        for i in range(len(sentences) - 1):
+            embedding_current = sentences[i]['embedding']
+            embedding_next = sentences[i + 1]['embedding']
 
-        # Further split clusters into chunks of specified size
-        final_chunks = []
-        for cluster in clusters:
-            for i in range(0, len(cluster), chunk_size):
-                final_chunks.append(cluster[i : i + chunk_size])
+            similarity = cosine_similarity([embedding_current], [embedding_next])
+            distance = 1 - similarity
+            distances.append(distance)
 
-        return final_chunks
+            sentences[i]['distance_to_next'] = distance
+
+        import numpy as np
+        breakpoint_threshold_percentile = 95
+
+        breakpoint_distance_threshold = np.percentile(distances, breakpoint_threshold_percentile)
+        indices_above_threshold = [i for i, x in enumerate(distances) if x > breakpoint_distance_threshold]
+
+        # Group sentences based on indices_above_threshold
+        if not indices_above_threshold:
+            # If no breakpoints found, return the whole text as one chunk
+            return [self.text]
+        
+        # Create groups by splitting at the indices
+        grouped_texts = []
+        start_index = 0
+        
+        for end_index in indices_above_threshold:
+            # Add the chunk from start_index to end_index (inclusive)
+            chunk_text = " ".join([sentences[i]['sentence'] for i in range(start_index, end_index + 1)])
+            grouped_texts.append(chunk_text)
+            start_index = end_index + 1
+        
+        # Add the remaining sentences as the last chunk
+        if start_index < len(sentences):
+            chunk_text = " ".join([sentences[i]['sentence'] for i in range(start_index, len(sentences))])
+            grouped_texts.append(chunk_text)
+
+        #print(grouped_texts[:3])
+
+        return grouped_texts
