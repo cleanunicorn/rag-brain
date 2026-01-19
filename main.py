@@ -1,46 +1,18 @@
-import click
-import os
-import pathspec
-from datetime import datetime
-from tqdm import tqdm
 import hashlib
+import os
+from datetime import datetime
+
+import click
+import pathspec
+from tqdm import tqdm
 
 import chromadb
-import chromadb.utils.embedding_functions as embedding_functions
-
 
 
 @click.group()
 def main():
     """Brain manager."""
     pass
-
-
-@main.command()
-def add_prompts():
-    import pandas as pd
-
-    df = pd.read_csv("./prompts.csv")
-    texts = df["prompt"].tolist()
-    print(texts[:1])
-    # metadatas = df['act'].tolist()
-    # print(metadatas[:1])
-    ids = [str(i) for i in range(len(texts))]
-    print(ids[:1])
-
-    client = chromadb.HttpClient(
-        host="localhost",
-        port=8000,
-        # database='brain'
-    )
-    collection = client.get_or_create_collection(name="prompts")
-
-    collection.add(
-        documents=texts,
-        # metadatas=metadatas,
-        ids=ids,
-    )
-
 
 @main.command()
 @click.argument("query")
@@ -77,9 +49,9 @@ def query(query, collection_name, results):
     help="Chunking strategy",
     type=click.Choice(["character", "endline", "recursive", "markdown", "semantic"]),
 )
-@click.option("--chunk_size", default=100, help="Chunk size", type=int)
-@click.option("--chunk_overlap", default=0, help="Chunk overlap", type=int)
-@click.option("--strip_whitespace", is_flag=True, help="Strip whitespace")
+@click.option("--chunk-size", default=100, help="Chunk size", type=int)
+@click.option("--chunk-overlap", default=0, help="Chunk overlap", type=int)
+@click.option("--strip-whitespace", is_flag=True, help="Strip whitespace")
 def chunk(file_path, strategy, chunk_size, chunk_overlap, strip_whitespace):
     from chunking.chunking import Chunking
 
@@ -153,13 +125,19 @@ def _discover_files(folder_path, file_extensions, gitignore_patterns):
 @main.command()
 @click.argument("folder_path")
 @click.argument("collection_name")
-@click.option("--strategy", default="recursive", help="Chunking strategy", 
+@click.option("--strategy", default="recursive", help="Chunking strategy",
               type=click.Choice(["character", "endline", "recursive", "markdown", "semantic"]))
-@click.option("--chunk_size", default=1000, help="Chunk size", type=int)
-@click.option("--chunk_overlap", default=200, help="Chunk overlap", type=int)
-@click.option("--file_extensions", default=".txt,.md,.py,.pdf", help="Comma-separated file extensions to process")
+@click.option("--chunk-size", default=1000, help="Chunk size", type=int)
+@click.option("--chunk-overlap", default=200, help="Chunk overlap", type=int)
+@click.option(
+    "--file-extensions", default=".txt,.md,.py,.pdf", help="Comma-separated file extensions to process"
+)
 @click.option("--clean", is_flag=True, help="Clean/recreate the collection before adding documents")
-@click.option("--refresh", is_flag=True, help="Only process files that have changed (based on checksum), skip if already processed and unchanged")
+@click.option(
+    "--refresh",
+    is_flag=True,
+    help="Only process files that have changed (based on checksum), skip if already processed and unchanged",
+)
 def rag(folder_path, collection_name, strategy, chunk_size, chunk_overlap, file_extensions, clean, refresh):
     """Load documents from a folder into a ChromaDB collection for RAG.
     """
@@ -325,13 +303,13 @@ def rag(folder_path, collection_name, strategy, chunk_size, chunk_overlap, file_
                 continue
     
     # Print summary
-    click.echo(f"\n=== Processing Summary ===")
+    click.echo("\n=== Processing Summary ===")
     click.echo(f"Files processed: {processed_files}")
     click.echo(f"Total chunks added: {total_chunks}")
     click.echo(f"Files skipped: {len(skipped_files)}")
     
     if skipped_files:
-        click.echo(f"\nSkipped files:")
+        click.echo("\nSkipped files:")
         for file_path, reason in skipped_files[:10]:  # Show first 10
             click.echo(f"  {os.path.relpath(file_path, folder_path)}: {reason}")
         if len(skipped_files) > 10:

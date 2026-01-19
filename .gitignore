@@ -16,3 +16,6 @@ chromadb/
 .ruff_cache
 
 .DS_Store
+
+# Jupyter
+*.ipynb

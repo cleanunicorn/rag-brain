@@ -1,10 +1,11 @@
+import os
+
+import PyPDF2
 from langchain.text_splitter import (
     CharacterTextSplitter,
-    RecursiveCharacterTextSplitter,
     MarkdownTextSplitter,
+    RecursiveCharacterTextSplitter,
 )
-import PyPDF2
-import os
 
 
 class Chunking:
@@ -113,7 +114,7 @@ class Chunking:
         return texts
 
     def split_semantic(self, similarity_threshold=0.8, chunk_size=100):
-        from sentence_transformers import SentenceTransformer, util
+        from sentence_transformers import SentenceTransformer
         model = SentenceTransformer("./chunking/embeddinggemma-300m")
 
         # Split into sentences
