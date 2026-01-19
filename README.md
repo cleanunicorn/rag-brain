@@ -22,8 +22,8 @@ Prerequisites:
 
 ```bash
 # Clone the repository
-git clone https://github.com/cleanunicorn/process.git
-cd process
+git clone https://github.com/cleanunicorn/rag-brain.git
+cd rag-brain
 
 # Install dependencies using Makefile
 make install
@@ -79,4 +79,4 @@ uv run python main.py chunk ./path/to/file.md --strategy markdown --chunk-size 5
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
 ## License
-[MIT](https://choosealicense.com/licenses/mit/)
+[Apache 2.0](LICENSE)
