@@ -2,6 +2,10 @@
 
 A flexible RAG (Retrieval-Augmented Generation) system manager for processing documents, chunking text, and managing a ChromaDB knowledge base.
 
+Can be integrated with chatbots such as LM Studio.
+<img width="2046" height="1874" alt="image" src="https://github.com/user-attachments/assets/151d91f3-c8d3-4de6-8c76-fa63a42f7893" />
+
+
 ## Features
 
 - **Document Ingestion**: Recursively process folders and ingest files (PDF, Markdown, Python, Text).
