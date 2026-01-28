@@ -5,6 +5,7 @@ A flexible RAG (Retrieval-Augmented Generation) system manager for processing do
 Can be integrated with chatbots such as LM Studio.
 <img width="2046" height="1874" alt="image" src="https://github.com/user-attachments/assets/151d91f3-c8d3-4de6-8c76-fa63a42f7893" />
 
+![alt text](static/image.png)
 
 ## Features
 
